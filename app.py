@@ -381,6 +381,187 @@ def zone_table(shots):
     return rows
 
 
+# ---------- Standings ----------
+STANDINGS_URL = "https://site.api.espn.com/apis/v2/sports/basketball/nba/standings"
+
+
+@st.cache_data(ttl=30 * 60)
+def fetch_standings():
+    return get_json(STANDINGS_URL)
+
+
+def parse_standings(data):
+    """Returns {"Eastern Conference": [rows], "Western Conference": [rows]}."""
+    conferences = {}
+
+    def entries_of(node):
+        found = list((node.get("standings") or {}).get("entries", []))
+        for child in node.get("children", []):  # sometimes split into divisions
+            found += entries_of(child)
+        return found
+
+    for conf in data.get("children", []):
+        rows = []
+        for entry in entries_of(conf):
+            stats = {}
+            for s in entry.get("stats", []):
+                for key in (s.get("name"), s.get("type"), s.get("displayName")):
+                    if key:
+                        stats.setdefault(key.lower(), s)
+
+            def val(*keys):
+                for k in keys:
+                    s = stats.get(k.lower())
+                    if s:
+                        return s.get("displayValue") or s.get("summary") or s.get("value")
+                return ""
+
+            team = entry.get("team", {})
+            seed = to_number(val("playoffSeed"))
+            rows.append(
+                {
+                    "Seed": int(seed) if seed else None,
+                    "Team": team.get("displayName", ""),
+                    "W": val("wins"), "L": val("losses"), "PCT": val("winPercent"),
+                    "GB": val("gamesBehind"), "Home": val("home"), "Away": val("road", "away"),
+                    "L10": val("lasttengames", "last ten games"), "Streak": val("streak"),
+                    "Diff": val("differential", "pointDifferential"),
+                    "_pct": to_number(val("winPercent")) or 0,
+                    "_cavs": is_cavs(team),
+                }
+            )
+        rows.sort(key=lambda r: (r["Seed"] is None, r["Seed"] or 0, -r["_pct"]))
+        for i, r in enumerate(rows, start=1):
+            r["Seed"] = r["Seed"] or i
+            r["Spot"] = "Playoffs" if r["Seed"] <= 6 else ("Play-in" if r["Seed"] <= 10 else "")
+        conferences[conf.get("name", "Conference")] = rows
+    return conferences
+
+
+def standings_table(rows):
+    import pandas as pd
+
+    df = pd.DataFrame(rows)
+    cavs_flags = df.pop("_cavs")
+    df.pop("_pct")
+    df = df[["Seed", "Team", "W", "L", "PCT", "GB", "Home", "Away", "L10", "Streak", "Diff", "Spot"]]
+    return df.style.apply(
+        lambda row: ["background-color:#860038;color:white;font-weight:bold" if cavs_flags[row.name] else "" for _ in row],
+        axis=1,
+    )
+
+
+# ---------- News ----------
+ESPN_NEWS_URLS = [f"{BASE}/news?team=5", f"{BASE}/teams/{TEAM}/news"]
+GOOGLE_NEWS_URL = "https://news.google.com/rss/search?q=%22Cleveland+Cavaliers%22+OR+Cavs+NBA&hl=en-US&gl=US&ceid=US:en"
+
+
+def time_ago(when):
+    if not when:
+        return ""
+    seconds = int((datetime.now(timezone.utc) - when).total_seconds())
+    if seconds < 3600:
+        return f"{max(seconds // 60, 1)}m ago"
+    if seconds < 86400:
+        return f"{seconds // 3600}h ago"
+    return f"{seconds // 86400}d ago"
+
+
+@st.cache_data(ttl=15 * 60)
+def fetch_news():
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+
+    articles = []
+    for url in ESPN_NEWS_URLS:  # ESPN
+        try:
+            for a in get_json(url).get("articles", []):
+                published = a.get("published") or a.get("lastModified")
+                articles.append(
+                    {
+                        "title": a.get("headline", ""),
+                        "link": ((a.get("links") or {}).get("web") or {}).get("href", ""),
+                        "source": "ESPN",
+                        "summary": a.get("description", ""),
+                        "when": datetime.fromisoformat(published.replace("Z", "+00:00")) if published else None,
+                    }
+                )
+            if articles:
+                break
+        except Exception:
+            continue
+
+    try:  # Google News (pulls from Cleveland.com, The Athletic, Cavs.com, etc.)
+        response = requests.get(GOOGLE_NEWS_URL, headers=HEADERS, timeout=15)
+        root = ET.fromstring(response.content)
+        for item in root.iter("item"):
+            title = item.findtext("title", "")
+            source = item.findtext("source", "")
+            if source and title.endswith(f" - {source}"):
+                title = title[: -len(f" - {source}")]
+            pub = item.findtext("pubDate")
+            articles.append(
+                {"title": title, "link": item.findtext("link", ""), "source": source or "News",
+                 "summary": "", "when": parsedate_to_datetime(pub) if pub else None}
+            )
+    except Exception:
+        pass
+
+    seen, unique = set(), []
+    for a in articles:
+        key = a["title"].lower()[:70]
+        if a["title"] and key not in seen:
+            seen.add(key)
+            unique.append(a)
+    unique.sort(key=lambda a: a["when"] or datetime(2000, 1, 1, tzinfo=timezone.utc), reverse=True)
+    return unique
+
+
+# ---------- Press conferences (Cavs YouTube channel) ----------
+CAVS_CHANNEL_PREFIX = "UCOdS-I1sY"  # start of the official Cavs channel ID
+CHANNEL_HANDLES = ["cavs", "Cavaliers", "cavaliers", "ClevelandCavaliers"]
+PRESSER_WORDS = ["postgame", "post-game", "pregame", "pre-game", "practice", "press", "media", "availability",
+                 "shootaround", "presser", "interview", "speaks", "talks", "media day"]
+
+
+@st.cache_data(ttl=24 * 60 * 60)
+def find_cavs_channel_id():
+    import re
+
+    for handle in CHANNEL_HANDLES:
+        try:
+            page = requests.get(f"https://www.youtube.com/@{handle}", headers=HEADERS, timeout=15).text
+            for cid in re.findall(r"(UC[\w-]{22})", page):
+                if cid.startswith(CAVS_CHANNEL_PREFIX):
+                    return cid
+        except Exception:
+            continue
+    return None
+
+
+@st.cache_data(ttl=30 * 60)
+def fetch_videos(channel_id):
+    import xml.etree.ElementTree as ET
+
+    ns = {"a": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015",
+          "m": "http://search.yahoo.com/mrss/"}
+    response = requests.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}", headers=HEADERS, timeout=15)
+    root = ET.fromstring(response.content)
+    videos = []
+    for entry in root.findall("a:entry", ns):
+        published = entry.findtext("a:published", "", ns)
+        thumb = entry.find("m:group/m:thumbnail", ns)
+        videos.append(
+            {
+                "title": entry.findtext("a:title", "", ns),
+                "id": entry.findtext("yt:videoId", "", ns),
+                "when": datetime.fromisoformat(published) if published else None,
+                "thumb": thumb.get("url") if thumb is not None else "",
+            }
+        )
+    return videos
+
+
 # ---------- Injuries ----------
 def parse_injuries(data, roster):
     for team_block in data.get("injuries", []):
@@ -446,8 +627,8 @@ standing = team_info.get("standingSummary", "")
 if record or standing:
     st.subheader(" · ".join(x for x in [record, standing] if x))
 
-games_tab, players_tab, injuries_tab = st.tabs(
-    ["📅 Games", "👥 Players", f"🩹 Injuries ({len(injuries)})"]
+games_tab, players_tab, injuries_tab, standings_tab, news_tab, pressers_tab = st.tabs(
+    ["📅 Games", "👥 Players", f"🩹 Injuries ({len(injuries)})", "🏆 Standings", "📰 News", "🎤 Pressers"]
 )
 
 # ---------- Games tab ----------
@@ -651,6 +832,78 @@ with injuries_tab:
             unsafe_allow_html=True,
         )
     st.caption("Statuses can change right up to tip-off. Check the official NBA injury report on game days.")
+
+# ---------- Standings tab ----------
+with standings_tab:
+    try:
+        conferences = parse_standings(fetch_standings())
+    except Exception as error:
+        conferences = {}
+        st.error("Couldn't load standings from ESPN right now.")
+        st.caption(f"Technical details: {error}")
+
+    if conferences:
+        east = next((k for k in conferences if "east" in k.lower()), list(conferences)[0])
+        cavs_row = next((r for rows in conferences.values() for r in rows if r["_cavs"]), None)
+        if cavs_row:
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("East seed", f"#{cavs_row['Seed']}")
+            c2.metric("Record", f"{cavs_row['W']}-{cavs_row['L']}")
+            c3.metric("Games back", cavs_row["GB"] or "-")
+            c4.metric("Streak", cavs_row["Streak"] or "-")
+
+        pick = st.radio("Conference", list(conferences), index=list(conferences).index(east), horizontal=True)
+        st.dataframe(standings_table(conferences[pick]), width="stretch", hide_index=True, height=565)
+        st.caption("Seeds 1-6 make the playoffs · 7-10 go to the play-in tournament")
+
+# ---------- News tab ----------
+with news_tab:
+    st.markdown("### Latest Cavs news")
+    news = fetch_news()
+    if not news:
+        st.info("Couldn't load news right now. Try Refresh in a few minutes.")
+    else:
+        sources = sorted({a["source"] for a in news})
+        chosen = st.multiselect("Sources", sources, placeholder="All sources")
+        shown = [a for a in news if not chosen or a["source"] in chosen][:40]
+        for a in shown:
+            st.markdown(f"**[{a['title']}]({a['link']})**  \n{a['source']} · {time_ago(a['when'])}")
+            if a["summary"]:
+                st.caption(a["summary"])
+
+# ---------- Pressers tab ----------
+with pressers_tab:
+    st.markdown("### Press conferences & interviews")
+    channel_id = find_cavs_channel_id()
+    videos = []
+    if channel_id:
+        try:
+            videos = fetch_videos(channel_id)
+        except Exception:
+            videos = []
+    if not videos:
+        st.info("Couldn't load the Cavs YouTube channel right now. Try Refresh in a few minutes.")
+    else:
+        only_pressers = st.toggle("Only show pressers & interviews", value=True)
+        pressers = [v for v in videos if any(w in v["title"].lower() for w in PRESSER_WORDS)]
+        shown = pressers if only_pressers and pressers else videos
+        if only_pressers and not pressers:
+            st.caption("No pressers in the channel's latest uploads, so here's everything new.")
+
+        featured, rest = shown[:2], shown[2:]
+        cols = st.columns(2)
+        for col, v in zip(cols, featured):
+            with col:
+                st.video(f"https://www.youtube.com/watch?v={v['id']}")
+                st.markdown(f"**{v['title']}**  \n{time_ago(v['when'])}")
+        for v in rest:
+            thumb_col, text_col = st.columns([1, 4])
+            with thumb_col:
+                if v["thumb"]:
+                    st.image(v["thumb"], width=160)
+            with text_col:
+                st.markdown(f"**[{v['title']}](https://www.youtube.com/watch?v={v['id']})**  \n{time_ago(v['when'])}")
+        st.caption("From the official Cavs YouTube channel · shows their latest 15 uploads")
 
 st.caption(
     f"Data from ESPN · page loaded {datetime.now(EASTERN).strftime('%b %-d, %-I:%M %p ET')}"
