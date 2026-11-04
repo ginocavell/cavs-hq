@@ -23,19 +23,124 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (CavsHQ dashboard)"}
 
 st.set_page_config(page_title="Cavs HQ", page_icon="🏀", layout="wide")
 
+# ---------- Look & feel ----------
 # Cavs colors: wine #860038, gold #FDBB30, navy #041E42
+WINE, GOLD, NAVY = "#860038", "#FDBB30", "#041E42"
 st.markdown(
     """
-    <style>
-    .game-card {background:#860038;color:white;padding:22px 26px;border-radius:14px;}
-    .game-card h2 {color:#FDBB30;margin:0 0 6px 0;}
-    .game-card p {margin:4px 0;font-size:1.05rem;}
-    .countdown {font-size:1.6rem;font-weight:700;color:#FDBB30;margin-top:10px;}
-    .injury {border-left:5px solid #860038;padding:8px 14px;margin:8px 0;background:rgba(134,0,56,.12);border-radius:6px;}
-    </style>
-    """,
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+/* Base */
+.stApp {background: radial-gradient(1200px 500px at 10% -10%, rgba(134,0,56,.25), transparent 60%), #0A1020;}
+html, body, .stApp, .stMarkdown, p, label, li, input, textarea, button, [data-testid="stCaptionContainer"] {
+  font-family: 'Inter', sans-serif;
+}
+h1, h2, h3, h4 {font-family: 'Barlow Condensed', sans-serif !important; text-transform: uppercase; letter-spacing: .5px;}
+header[data-testid="stHeader"] {background: transparent;}
+.block-container {padding-top: 1.6rem; max-width: 1400px;}
+a {color: #FDBB30 !important; text-decoration: none;}
+a:hover {text-decoration: underline;}
+hr {border-color: rgba(255,255,255,.08) !important;}
+
+/* Tabs */
+[data-baseweb="tab-list"] {gap: 6px; border-bottom: 1px solid rgba(255,255,255,.08);}
+.stTabs button[data-baseweb="tab"] p, [data-baseweb="tab"] p {font-family: 'Barlow Condensed', sans-serif; font-size: 1.15rem !important; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 1.2px;}
+[data-baseweb="tab"][aria-selected="true"] p {color: #FDBB30;}
+[data-baseweb="tab-highlight"] {background-color: #FDBB30 !important; height: 3px !important;}
+
+/* Section headers */
+.section {font-family: 'Barlow Condensed', sans-serif; font-size: 1.45rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 1.5px; border-left: 4px solid #FDBB30; padding: 0 0 0 12px; margin: 22px 0 12px; line-height: 1.1;}
+.section small {display:block; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:500; letter-spacing:.3px;
+  text-transform:none; opacity:.6; margin-top:4px;}
+.subsection {display:flex; align-items:center; gap:10px; font-family:'Barlow Condensed',sans-serif; font-size:1.2rem;
+  font-weight:700; text-transform:uppercase; letter-spacing:1px; margin:18px 0 6px;}
+.subsection img {width:30px; height:30px;}
+
+/* Hero banner */
+.hero {background: linear-gradient(120deg, #860038 0%, #5a0026 45%, #041E42 100%); border-radius: 8px;
+  padding: 22px 28px; border-bottom: 3px solid #FDBB30; display:flex; align-items:center; gap:22px; margin-bottom: 8px;}
+.hero img {width: 84px; height: 84px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4));}
+.hero-title {font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:3rem; line-height:1; letter-spacing:2px; color:#fff;}
+.hero-title span {color:#FDBB30;}
+.hero-sub {font-family:'Barlow Condensed',sans-serif; font-size:1.25rem; font-weight:600; letter-spacing:1px;
+  text-transform:uppercase; color:rgba(255,255,255,.85); margin-top:4px;}
+.chips {margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;}
+.chip {font-family:'Barlow Condensed',sans-serif; font-size:.95rem; font-weight:600; letter-spacing:1px; text-transform:uppercase;
+  background:rgba(0,0,0,.25); border:1px solid rgba(253,187,48,.4); color:#fff; padding:3px 12px; border-radius:4px;}
+.chip b {color:#FDBB30;}
+
+/* Next game card */
+.game-card {background: linear-gradient(145deg, #141C2E, #0E1524); border:1px solid rgba(255,255,255,.07);
+  border-top: 3px solid #860038; border-radius: 8px; padding: 22px 26px;}
+.gc-label {font-family:'Barlow Condensed',sans-serif; color:#FDBB30; letter-spacing:3px; font-weight:700; font-size:.95rem;}
+.gc-matchup {display:flex; align-items:center; gap:18px; margin:12px 0 14px;}
+.gc-matchup img {width:64px; height:64px;}
+.gc-vs {font-family:'Barlow Condensed',sans-serif; font-size:1.6rem; font-weight:700; opacity:.6;}
+.gc-opp {font-family:'Barlow Condensed',sans-serif; font-size:2rem; font-weight:800; text-transform:uppercase; line-height:1;}
+.gc-meta {display:grid; grid-template-columns: repeat(3, auto); gap: 6px 28px; justify-content:start; font-size:.92rem; opacity:.85;}
+.gc-meta div span {display:block; font-size:.7rem; text-transform:uppercase; letter-spacing:1.5px; opacity:.6;}
+.countdown {font-family:'Barlow Condensed',sans-serif; font-size:2.4rem; font-weight:800; color:#FDBB30; margin-top:14px; letter-spacing:1px;}
+
+/* Last-5 result buttons */
+[class*="st-key-last5_"] button {width:100%; justify-content:flex-start; background:#141C2E; border:1px solid rgba(255,255,255,.06);
+  border-radius:6px; padding:10px 14px; margin-bottom:2px;}
+[class*="st-key-last5_"] button p {font-family:'Barlow Condensed',sans-serif; font-size:1.15rem; font-weight:600; letter-spacing:.5px;}
+[class*="st-key-last5_W"] button {border-left:4px solid #2ecc71;}
+[class*="st-key-last5_L"] button {border-left:4px solid #e74c3c;}
+[class*="st-key-last5_"] button:hover {background:#1B2540; border-color: rgba(253,187,48,.4);}
+
+/* Metrics as stat tiles */
+[data-testid="stMetric"] {background:#141C2E; border:1px solid rgba(255,255,255,.06); border-left:3px solid #860038;
+  border-radius:6px; padding:12px 14px;}
+[data-testid="stMetricLabel"] p {font-family:'Barlow Condensed',sans-serif; text-transform:uppercase; letter-spacing:1.5px; font-size:.95rem !important; opacity:.75;}
+[data-testid="stMetricValue"] {font-family:'Barlow Condensed',sans-serif; font-weight:800;}
+
+/* Tables, expanders, buttons, inputs */
+[data-testid="stDataFrame"] {border:1px solid rgba(255,255,255,.07); border-radius:6px; overflow:hidden;}
+[data-testid="stExpander"] details {border:1px solid rgba(255,255,255,.08); border-radius:6px; background:#0E1524;}
+.stButton > button, [data-testid="stBaseButton-secondary"] {border-radius:4px;}
+[data-baseweb="select"] > div {border-radius:4px;}
+
+/* Player card */
+.player-card {display:flex; gap:24px; align-items:flex-end; background:linear-gradient(120deg,#860038 0%,#3a0019 55%,#141C2E 100%);
+  border-radius:8px; padding:18px 26px 0; border-bottom:3px solid #FDBB30; overflow:hidden; position:relative; margin-bottom:14px;}
+.player-card img {height:170px; margin-bottom:0;}
+.player-card .pc-info {padding-bottom:18px;}
+.pc-number {position:absolute; right:26px; top:4px; font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:7rem;
+  color:rgba(253,187,48,.18); line-height:1;}
+.pc-name {font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:2.6rem; text-transform:uppercase; line-height:1; letter-spacing:1px;}
+.pc-facts {margin-top:10px; display:flex; flex-wrap:wrap; gap:8px;}
+.badge-injury {background:#e74c3c; color:#fff; padding:3px 10px; border-radius:4px; font-family:'Barlow Condensed',sans-serif;
+  font-weight:700; letter-spacing:1px; text-transform:uppercase; font-size:.9rem;}
+
+/* News + injuries */
+.news-card {background:#141C2E; border:1px solid rgba(255,255,255,.06); border-radius:6px; padding:14px 18px; margin-bottom:10px;}
+.news-card:hover {border-color: rgba(253,187,48,.35);}
+.news-meta {font-family:'Barlow Condensed',sans-serif; font-size:.9rem; letter-spacing:1.2px; text-transform:uppercase; opacity:.65;}
+.news-meta b {color:#FDBB30; opacity:1;}
+.news-title {font-size:1.08rem; font-weight:600; margin:4px 0; line-height:1.35;}
+.news-title a {color:#fff !important;}
+.news-sum {font-size:.9rem; opacity:.7;}
+.injury {background:#141C2E; border:1px solid rgba(255,255,255,.06); border-left:4px solid #e74c3c; padding:12px 16px; margin:8px 0; border-radius:6px;}
+.injury .inj-name {font-family:'Barlow Condensed',sans-serif; font-size:1.3rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px;}
+.injury .inj-status {font-family:'Barlow Condensed',sans-serif; font-weight:700; color:#FDBB30; letter-spacing:1px; text-transform:uppercase; margin-left:8px;}
+.footer {opacity:.45; font-size:.8rem; margin-top:30px;}
+</style>
+""",
     unsafe_allow_html=True,
 )
+
+
+def section(title, sub=""):
+    sub_html = f"<small>{sub}</small>" if sub else ""
+    st.markdown(f'<div class="section">{title}{sub_html}</div>', unsafe_allow_html=True)
+
+
+def logo_url(abbr):
+    return f"https://a.espncdn.com/i/teamlogos/nba/500/{str(abbr).lower()}.png" if abbr else ""
 
 
 # ---------- Helpers for getting data ----------
@@ -429,6 +534,7 @@ def parse_standings(data):
                     "Diff": val("differential", "pointDifferential"),
                     "_pct": to_number(val("winPercent")) or 0,
                     "_cavs": is_cavs(team),
+                    " ": ((team.get("logos") or [{}])[0].get("href")) or logo_url(team.get("abbreviation")),
                 }
             )
         rows.sort(key=lambda r: (r["Seed"] is None, r["Seed"] or 0, -r["_pct"]))
@@ -445,7 +551,7 @@ def standings_table(rows):
     df = pd.DataFrame(rows)
     cavs_flags = df.pop("_cavs")
     df.pop("_pct")
-    df = df[["Seed", "Team", "W", "L", "PCT", "GB", "Home", "Away", "L10", "Streak", "Diff", "Spot"]]
+    df = df[["Seed", " ", "Team", "W", "L", "PCT", "GB", "Home", "Away", "L10", "Streak", "Diff", "Spot"]]
     return df.style.apply(
         lambda row: ["background-color:#860038;color:white;font-weight:bold" if cavs_flags[row.name] else "" for _ in row],
         axis=1,
@@ -668,7 +774,7 @@ def render_box_score(summary, game):
             totals = group.get("totals") or []
             if not starters and not bench:
                 continue
-            st.markdown(f"#### {team.get('displayName', 'Team')}")
+            st.markdown(f'<div class="subsection"><img src="{logo_url(team.get("abbreviation"))}">{team.get("displayName", "Team")}</div>', unsafe_allow_html=True)
             table = (
                 [{"Player": "— STARTERS —"}] + starters
                 + ([{"Player": "— BENCH —"}] + bench if bench else [])
@@ -733,15 +839,6 @@ def parse_injuries(data, roster):
 
 
 # ---------- Load everything ----------
-title_col, button_col = st.columns([5, 1])
-with title_col:
-    st.title("🏀 Cavs HQ")
-with button_col:
-    st.write("")
-    if st.button("🔄 Refresh data"):
-        st.cache_data.clear()
-        st.rerun()
-
 try:
     schedule_data = fetch_schedule()
     games = parse_games(schedule_data)
@@ -769,11 +866,47 @@ all_shots = parse_shots(box_scores, games)
 team_info = schedule_data.get("team", {})
 record = team_info.get("recordSummary", "")
 standing = team_info.get("standingSummary", "")
-if record or standing:
-    st.subheader(" · ".join(x for x in [record, standing] if x))
+cavs_logo = team_info.get("logo") or ((team_info.get("logos") or [{}])[0].get("href")) or logo_url("cle")
+
+try:
+    conferences = parse_standings(fetch_standings())
+    standings_error = None
+except Exception as error:
+    conferences, standings_error = {}, error
+cavs_row = next((r for rows in conferences.values() for r in rows if r["_cavs"]), None)
+
+# --- Hero banner ---
+chips = []
+if cavs_row:
+    chips.append(f"East <b>#{cavs_row['Seed']}</b>")
+    if cavs_row.get("Streak"):
+        chips.append(f"Streak <b>{cavs_row['Streak']}</b>")
+    if cavs_row.get("L10"):
+        chips.append(f"Last 10 <b>{cavs_row['L10']}</b>")
+next_game = next((g for g in games if not g["completed"]), None)
+if next_game:
+    chips.append(f"Next <b>{matchup(next_game, short=True)}</b> {next_game['date'].strftime('%a %-I:%M %p')}")
+chips.append(f"Injuries <b>{len(injuries)}</b>")
+
+hero_col, button_col = st.columns([7, 1], vertical_alignment="center")
+with hero_col:
+    st.markdown(
+        f"""<div class="hero">
+<img src="{cavs_logo}">
+<div>
+<div class="hero-title">CAVS <span>HQ</span></div>
+<div class="hero-sub">{' · '.join(x for x in [record, standing] if x)}</div>
+<div class="chips">{''.join(f'<span class="chip">{c}</span>' for c in chips)}</div>
+</div></div>""",
+        unsafe_allow_html=True,
+    )
+with button_col:
+    if st.button("↻ Refresh", width="stretch"):
+        st.cache_data.clear()
+        st.rerun()
 
 games_tab, players_tab, injuries_tab, standings_tab, news_tab, pressers_tab = st.tabs(
-    ["📅 Games", "👥 Players", f"🩹 Injuries ({len(injuries)})", "🏆 Standings", "📰 News", "🎤 Pressers"]
+    ["Games", "Players", f"Injuries ({len(injuries)})", "Standings", "News", "Pressers"]
 )
 
 # ---------- Games tab ----------
@@ -784,50 +917,52 @@ with games_tab:
 
     left, right = st.columns([3, 2])
     with left:
+        section("Live now" if live else "Next game")
         if featured:
-            label = "🔴 LIVE NOW" if live else "NEXT GAME"
-            when = featured["date"].strftime("%A, %b %-d · %-I:%M %p ET")
+            label = "● LIVE" if live else ("HOME" if featured["home"] else "ROAD")
             extra = (
                 f'<div class="countdown">{result_text(featured)} · {featured["status_text"]}</div>'
                 if live
-                else f'<div class="countdown">⏱ {countdown(featured["date"])}</div>'
+                else f'<div class="countdown">{countdown(featured["date"])}</div>'
             )
-            logo = f'<img src="{featured["opp_logo"]}" width="70" style="float:right">' if featured["opp_logo"] else ""
+            opp_logo = featured["opp_logo"] or logo_url(featured["opp_abbr"])
             st.markdown(
-                f"""
-                <div class="game-card">
-                  {logo}
-                  <p style="opacity:.8;letter-spacing:2px">{label}</p>
-                  <h2>Cavs {matchup(featured)}</h2>
-                  <p>📅 {when}</p>
-                  <p>📺 {featured["tv"]}</p>
-                  <p>📍 {featured["venue"]}</p>
-                  {extra}
-                </div>
-                """,
+                f"""<div class="game-card">
+<div class="gc-label">{label}</div>
+<div class="gc-matchup">
+<img src="{cavs_logo}"><div class="gc-vs">{"VS" if featured["home"] else "@"}</div><img src="{opp_logo}">
+<div class="gc-opp">{featured["opponent"]}</div>
+</div>
+<div class="gc-meta">
+<div><span>Date</span>{featured["date"].strftime("%a, %b %-d")}</div>
+<div><span>Tip-off</span>{featured["date"].strftime("%-I:%M %p ET")}</div>
+<div><span>TV</span>{featured["tv"]}</div>
+<div style="grid-column: span 3"><span>Arena</span>{featured["venue"]}</div>
+</div>
+{extra}
+</div>""",
                 unsafe_allow_html=True,
             )
         else:
             st.info("No upcoming games found. The season may be over.")
 
     with right:
-        st.markdown("### Last 5 games")
+        section("Last 5", "Click a game for its box score")
         last5 = finished[-5:]
         if not last5:
             st.write("No games played yet.")
         for g in reversed(last5):
             text = result_text(g)
-            icon = "🟢" if text.startswith("W") else "🔴"
+            wl = "W" if text.startswith("W") else "L"
             st.button(
-                f"{icon} {text} {matchup(g)} · {g['date'].strftime('%b %-d')}",
-                key=f"last5_{g['id']}", on_click=pick_box_game, args=(g["id"],), type="tertiary",
+                f"{text}   {matchup(g, short=True)}   ·   {g['date'].strftime('%b %-d')}",
+                key=f"last5_{wl}_{g['id']}", on_click=pick_box_game, args=(g["id"],), type="tertiary", width="stretch",
             )
         if last5:
             wins = sum(1 for g in last5 if result_text(g).startswith("W"))
-            st.caption(f"{wins}-{len(last5) - wins} over the last {len(last5)} · click a game for its box score")
+            st.caption(f"{wins}-{len(last5) - wins} over the last {len(last5)}")
 
-    st.markdown("---")
-    st.markdown("### Full schedule")
+    section("Schedule", "Click a row in Played or All to see that game's box score")
     views = {
         "Upcoming": [g for g in games if not g["completed"]],
         "Played": finished[::-1],
@@ -840,6 +975,7 @@ with games_tab:
             st.dataframe(
                 [
                     {
+                        " ": g["opp_logo"] or logo_url(g["opp_abbr"]),
                         "Date": g["date"].strftime("%a %b %-d"),
                         "Time (ET)": g["date"].strftime("%-I:%M %p"),
                         "Matchup": matchup(g),
@@ -853,18 +989,17 @@ with games_tab:
                 key=table_key,
                 on_select=partial(pick_from_table, table_key),
                 selection_mode="single-row",
+                column_config={" ": st.column_config.ImageColumn(" ", width="small")},
             )
-    st.caption("Click a row in Played or All to see that game's box score")
 
     # --- Box score ---
-    st.markdown("---")
     game_by_id = {g["id"]: g for g in games}
     box_id = st.session_state.get("box_game")
     if box_id not in game_by_id:
         box_id = live[0]["id"] if live else (finished[-1]["id"] if finished else None)
     if box_id:
         box_game = game_by_id[box_id]
-        st.markdown(f"### 📋 Box score: Cavs {matchup(box_game)} · {box_game['date'].strftime('%a %b %-d')}")
+        section(f"Box score · Cavs {matchup(box_game)}", box_game["date"].strftime("%A, %B %-d"))
         if not box_game["completed"] and box_game["state"] != "in":
             st.info("This game hasn't been played yet. Box scores show up once it tips off.")
         else:
@@ -884,19 +1019,30 @@ with players_tab:
     if not logs:
         st.info("No player stats yet. They'll show up once the Cavs have played a game.")
     else:
-        st.markdown("### Season averages")
-        st.caption(f"Built from {len(finished)} box scores · click a column to sort")
+        section("Season averages", f"Built from {len(finished)} box scores · click a column to sort")
         season_rows = []
         for pid, lines in logs.items():
             profile = roster.get(pid, {})
-            row = {"Player": profile.get("name") or lines[-1]["name"], "Pos": profile.get("position", "")}
+            row = {
+                " ": profile.get("headshot") or lines[-1]["headshot"],
+                "Player": profile.get("name") or lines[-1]["name"],
+                "Pos": profile.get("position", ""),
+            }
             row.update(averages(lines))
             season_rows.append(row)
         season_rows.sort(key=lambda r: r["PTS"], reverse=True)
-        st.dataframe(season_rows, width="stretch", hide_index=True)
+        top = lambda k: max([r[k] for r in season_rows] + [1])
+        st.dataframe(
+            season_rows, width="stretch", hide_index=True, row_height=44,
+            column_config={
+                " ": st.column_config.ImageColumn(" ", width="small"),
+                "PTS": st.column_config.ProgressColumn("PTS", format="%.1f", min_value=0, max_value=top("PTS")),
+                "REB": st.column_config.ProgressColumn("REB", format="%.1f", min_value=0, max_value=top("REB")),
+                "AST": st.column_config.ProgressColumn("AST", format="%.1f", min_value=0, max_value=top("AST")),
+            },
+        )
 
-        st.markdown("---")
-        st.markdown("### Player profile")
+        section("Player profile")
         order = [pid for pid, _ in sorted(logs.items(), key=lambda kv: -averages(kv[1])["PTS"])]
         order += [pid for pid in roster if pid not in logs]  # players who haven't played yet
         names = {pid: (roster.get(pid, {}).get("name") or logs[pid][-1]["name"]) for pid in order}
@@ -904,39 +1050,42 @@ with players_tab:
 
         profile = roster.get(pid, {})
         lines = logs.get(pid, [])
-        photo_col, info_col = st.columns([1, 4])
-        with photo_col:
-            photo = profile.get("headshot") or (lines[-1]["headshot"] if lines else "")
-            if photo:
-                st.image(photo, width=150)
-        with info_col:
-            jersey = f"#{profile['jersey']} · " if profile.get("jersey") else ""
-            st.markdown(f"## {names[pid]}")
-            facts = [
-                f"{jersey}{profile.get('position', '')}",
-                profile.get("height", ""), profile.get("weight", ""),
-                f"Age {profile['age']}" if profile.get("age") else "",
-                f"{profile['experience']} yrs exp" if profile.get("experience") not in ("", None) else "",
-                profile.get("college", ""),
-            ]
-            st.write(" · ".join(f for f in facts if f))
-            status = next((i for i in injuries if i["name"] == names[pid]), None)
-            if status:
-                st.warning(f"🩹 {status['status']}{' · ' + status['injury'] if status['injury'] else ''}")
+        photo = profile.get("headshot") or (lines[-1]["headshot"] if lines else "")
+        facts = [
+            profile.get("position", ""), profile.get("height", ""), profile.get("weight", ""),
+            f"Age {profile['age']}" if profile.get("age") else "",
+            f"{profile['experience']} yrs exp" if profile.get("experience") not in ("", None) else "",
+            profile.get("college", ""),
+        ]
+        status = next((i for i in injuries if i["name"] == names[pid]), None)
+        injury_html = (
+            f'<span class="badge-injury">{status["status"]}{" · " + status["injury"] if status["injury"] else ""}</span>'
+            if status else ""
+        )
+        st.markdown(
+            f"""<div class="player-card">
+<div class="pc-number">{"#" + str(profile["jersey"]) if profile.get("jersey") else ""}</div>
+{f'<img src="{photo}">' if photo else ""}
+<div class="pc-info">
+<div class="pc-name">{names[pid]}</div>
+<div class="pc-facts">{"".join(f'<span class="chip">{f}</span>' for f in facts if f)}{injury_html}</div>
+</div></div>""",
+            unsafe_allow_html=True,
+        )
 
         if not lines:
             st.info("Hasn't played yet this season.")
         else:
             season = averages(lines)
             recent = averages(lines[-5:])
-            st.markdown(f"**Last {min(5, len(lines))} games vs season average**")
+            st.markdown(f'<div class="subsection">Last {min(5, len(lines))} games vs season average</div>', unsafe_allow_html=True)
             cols = st.columns(6)
             for col, key in zip(cols, ["PTS", "REB", "AST", "MIN", "FG%", "3P%"]):
                 now, base = recent.get(key), season.get(key)
                 delta = round(now - base, 1) if now is not None and base is not None else None
                 col.metric(key, now if now is not None else "-", delta)
 
-            st.markdown("**Game log**")
+            st.markdown('<div class="subsection">Game log</div>', unsafe_allow_html=True)
             st.dataframe(
                 [
                     {
@@ -957,7 +1106,7 @@ with players_tab:
 
         # --- Shot chart ---
         st.markdown("---")
-        st.markdown("### 🎯 Shot chart")
+        section("Shot chart", "Hover over any shot for the play")
         whole_team = st.toggle("Show the whole team instead of this player")
         pool = all_shots if whole_team else [s for s in all_shots if s["player"] == pid]
         who = "Cavs" if whole_team else names[pid]
@@ -977,7 +1126,7 @@ with players_tab:
                     width="stretch", config={"displayModeBar": False},
                 )
             with zone_col:
-                st.markdown("**By zone**")
+                st.markdown('<div class="subsection">By zone</div>', unsafe_allow_html=True)
                 st.dataframe(zone_table(shots), width="stretch", hide_index=True)
                 threes = [s for s in shots if s["three"]]
                 twos = [s for s in shots if not s["three"]]
@@ -997,45 +1146,42 @@ with players_tab:
 
 # ---------- Injuries tab ----------
 with injuries_tab:
-    st.markdown("### Injury report")
+    section("Injury report", "Statuses can change right up to tip-off. Check the official NBA report on game days.")
     if not injuries:
-        st.success("No Cavs on the injury report right now. 🙌")
+        st.success("No Cavs on the injury report right now.")
     for i in injuries:
-        bits = [x for x in [i["injury"], f"Expected back: {i['return']}" if i["return"] else "", f"Updated {i['updated']}" if i["updated"] else ""] if x]
+        bits = [x for x in [i["injury"], f"Expected back {i['return']}" if i["return"] else "", f"Updated {i['updated']}" if i["updated"] else ""] if x]
         st.markdown(
-            f'<div class="injury"><b>{i["name"]}</b> · <b style="color:#FDBB30">{i["status"]}</b><br>'
-            f'<span style="opacity:.85">{" · ".join(bits)}</span><br>'
-            f'<span style="opacity:.75">{i["comment"]}</span></div>',
+            f'<div class="injury"><span class="inj-name">{i["name"]}</span><span class="inj-status">{i["status"]}</span>'
+            f'<div class="news-meta" style="margin-top:4px">{" · ".join(bits)}</div>'
+            f'<div class="news-sum" style="margin-top:6px">{i["comment"]}</div></div>',
             unsafe_allow_html=True,
         )
-    st.caption("Statuses can change right up to tip-off. Check the official NBA injury report on game days.")
 
 # ---------- Standings tab ----------
 with standings_tab:
-    try:
-        conferences = parse_standings(fetch_standings())
-    except Exception as error:
-        conferences = {}
+    if standings_error:
         st.error("Couldn't load standings from ESPN right now.")
-        st.caption(f"Technical details: {error}")
-
+        st.caption(f"Technical details: {standings_error}")
     if conferences:
-        east = next((k for k in conferences if "east" in k.lower()), list(conferences)[0])
-        cavs_row = next((r for rows in conferences.values() for r in rows if r["_cavs"]), None)
         if cavs_row:
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("East seed", f"#{cavs_row['Seed']}")
             c2.metric("Record", f"{cavs_row['W']}-{cavs_row['L']}")
             c3.metric("Games back", cavs_row["GB"] or "-")
             c4.metric("Streak", cavs_row["Streak"] or "-")
-
-        pick = st.radio("Conference", list(conferences), index=list(conferences).index(east), horizontal=True)
-        st.dataframe(standings_table(conferences[pick]), width="stretch", hide_index=True, height=565)
-        st.caption("Seeds 1-6 make the playoffs · 7-10 go to the play-in tournament")
+        section("Standings", "Seeds 1-6 make the playoffs · 7-10 go to the play-in")
+        conf_names = sorted(conferences, key=lambda k: "east" not in k.lower())  # East first
+        for conf_tab, conf in zip(st.tabs([c.replace(" Conference", "") for c in conf_names]), conf_names):
+            with conf_tab:
+                st.dataframe(
+                    standings_table(conferences[conf]), width="stretch", hide_index=True, height=38 * (len(conferences[conf]) + 1) + 4, row_height=38,
+                    column_config={" ": st.column_config.ImageColumn(" ", width="small")},
+                )
 
 # ---------- News tab ----------
 with news_tab:
-    st.markdown("### Latest Cavs news")
+    section("Latest news", "ESPN plus coverage from around the web")
     news = fetch_news()
     if not news:
         st.info("Couldn't load news right now. Try Refresh in a few minutes.")
@@ -1043,14 +1189,18 @@ with news_tab:
         sources = sorted({a["source"] for a in news})
         chosen = st.multiselect("Sources", sources, placeholder="All sources")
         shown = [a for a in news if not chosen or a["source"] in chosen][:40]
-        for a in shown:
-            st.markdown(f"**[{a['title']}]({a['link']})**  \n{a['source']} · {time_ago(a['when'])}")
-            if a["summary"]:
-                st.caption(a["summary"])
+        left_news, right_news = st.columns(2)
+        for n, a in enumerate(shown):
+            summary = f'<div class="news-sum">{a["summary"]}</div>' if a["summary"] else ""
+            (left_news if n % 2 == 0 else right_news).markdown(
+                f'<div class="news-card"><div class="news-meta"><b>{a["source"]}</b> · {time_ago(a["when"])}</div>'
+                f'<div class="news-title"><a href="{a["link"]}" target="_blank">{a["title"]}</a></div>{summary}</div>',
+                unsafe_allow_html=True,
+            )
 
 # ---------- Pressers tab ----------
 with pressers_tab:
-    st.markdown("### Press conferences & interviews")
+    section("Pressers & videos", "From the official Cavs YouTube channel")
     channel_id = find_cavs_channel_id()
     videos, problem = [], ""
     if channel_id:
@@ -1099,6 +1249,7 @@ with pressers_tab:
                 st.markdown(f"**[{v['title']}](https://www.youtube.com/watch?v={v['id']})**  \n{time_ago(v['when'])}")
         st.caption("From the official Cavs YouTube channel · shows their latest uploads")
 
-st.caption(
-    f"Data from ESPN · page loaded {datetime.now(EASTERN).strftime('%b %-d, %-I:%M %p ET')}"
+st.markdown(
+    f'<div class="footer">Data from ESPN &amp; YouTube · page loaded {datetime.now(EASTERN).strftime("%b %-d, %-I:%M %p ET")}</div>',
+    unsafe_allow_html=True,
 )
