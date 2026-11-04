@@ -550,8 +550,23 @@ def fetch_videos(channel_id):
 
     ns = {"a": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015",
           "m": "http://search.yahoo.com/mrss/"}
-    response = requests.get(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}", headers=HEADERS, timeout=15)
-    root = ET.fromstring(response.content)
+    feeds = [
+        f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}",
+        f"https://www.youtube.com/feeds/videos.xml?playlist_id=UU{channel_id[2:]}",  # the channel's "uploads" playlist
+    ]
+    problems, root = [], None
+    for url in feeds:
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=15)
+            if response.status_code != 200:
+                problems.append(f"HTTP {response.status_code}")
+                continue
+            root = ET.fromstring(response.content)
+            break
+        except Exception as error:
+            problems.append(type(error).__name__)
+    if root is None:
+        raise RuntimeError("YouTube feed failed: " + ", ".join(problems))
     videos = []
     for entry in root.findall("a:entry", ns):
         published = entry.findtext("a:published", "", ns)
@@ -880,14 +895,21 @@ with news_tab:
 with pressers_tab:
     st.markdown("### Press conferences & interviews")
     channel_id = find_cavs_channel_id()
-    videos = []
+    videos, problem = [], ""
     if channel_id:
         try:
             videos = fetch_videos(channel_id)
-        except Exception:
-            videos = []
+        except Exception as error:
+            problem = str(error)
     if not videos:
         st.info("Couldn't load the Cavs YouTube channel right now. Try Refresh in a few minutes.")
+        if problem:
+            st.caption(f"Technical details: {problem}")
+        st.markdown(
+            "**Go straight to YouTube instead:**  \n"
+            "[▶️ Cavs channel: latest videos](https://www.youtube.com/@cavs/videos)  \n"
+            "[🔎 Search: Cavs postgame press conferences](https://www.youtube.com/results?search_query=cavaliers+postgame+press+conference&sp=CAI%253D)"
+        )
     else:
         only_pressers = st.toggle("Only show pressers & interviews", value=True)
         pressers = [v for v in videos if any(w in v["title"].lower() for w in PRESSER_WORDS)]
