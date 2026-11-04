@@ -544,8 +544,39 @@ def find_cavs_channel_id():
     return None
 
 
+def youtube_api_key():
+    try:
+        return st.secrets.get("YOUTUBE_API_KEY", "")
+    except Exception:
+        return ""
+
+
 @st.cache_data(ttl=30 * 60)
 def fetch_videos(channel_id):
+    key = youtube_api_key()
+    if key:  # Official YouTube API (most reliable)
+        data = get_json(
+            "https://www.googleapis.com/youtube/v3/playlistItems",
+            {"part": "snippet", "playlistId": f"UU{channel_id[2:]}", "maxResults": 25, "key": key},
+        )
+        videos = []
+        for item in data.get("items", []):
+            sn = item.get("snippet", {})
+            published = sn.get("publishedAt", "")
+            thumbs = sn.get("thumbnails", {})
+            videos.append(
+                {
+                    "title": sn.get("title", ""),
+                    "id": (sn.get("resourceId") or {}).get("videoId", ""),
+                    "when": datetime.fromisoformat(published.replace("Z", "+00:00")) if published else None,
+                    "thumb": (thumbs.get("medium") or thumbs.get("default") or {}).get("url", ""),
+                }
+            )
+        return videos
+    return fetch_videos_rss(channel_id)
+
+
+def fetch_videos_rss(channel_id):
     import xml.etree.ElementTree as ET
 
     ns = {"a": "http://www.w3.org/2005/Atom", "yt": "http://www.youtube.com/xml/schemas/2015",
@@ -930,7 +961,7 @@ with pressers_tab:
                     st.image(v["thumb"], width=160)
             with text_col:
                 st.markdown(f"**[{v['title']}](https://www.youtube.com/watch?v={v['id']})**  \n{time_ago(v['when'])}")
-        st.caption("From the official Cavs YouTube channel · shows their latest 15 uploads")
+        st.caption("From the official Cavs YouTube channel · shows their latest uploads")
 
 st.caption(
     f"Data from ESPN · page loaded {datetime.now(EASTERN).strftime('%b %-d, %-I:%M %p ET')}"
