@@ -292,8 +292,7 @@ def parse_shots(box_scores, games):
             if x is None or y is None or abs(x) > 200 or abs(y) > 200:
                 continue  # missing or junk location
             raw_x, raw_y = x, y
-            if y > 47:  # shot logged on the far half: flip it onto ours
-                x, y = 50 - x, 94 - y
+            y = raw_y + HOOP_Y  # ESPN measures y from the hoop; the chart measures from the baseline
             participants = play.get("participants") or [{}]
             shooter = str((participants[0].get("athlete") or {}).get("id"))
             three = "three point" in text.lower() or "3pt" in kind.lower() or play.get("scoreValue") == 3
@@ -349,8 +348,9 @@ def shot_chart(shots, title):
         dict(type="path", path=arc_path(25, 47, 6, 180, 360), line=line),             # center circle
     ]
     fig = go.Figure()
+    on_court = [s for s in shots if s["y"] <= 47]  # leave out backcourt heaves
     for made, name, color, symbol in [(True, "Made", "#2ecc71", "circle"), (False, "Missed", "#e74c3c", "x")]:
-        group = [s for s in shots if s["made"] == made]
+        group = [s for s in on_court if s["made"] == made]
         fig.add_trace(
             go.Scatter(
                 x=[s["x"] for s in group], y=[s["y"] for s in group], mode="markers", name=f"{name} ({len(group)})",
