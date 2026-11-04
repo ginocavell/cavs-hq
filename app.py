@@ -613,6 +613,99 @@ def fetch_videos_rss(channel_id):
     return videos
 
 
+# ---------- Box scores ----------
+@st.cache_data(ttl=60)
+def fetch_summary(event_id):
+    """Fresh box score for one game (used for live games)."""
+    return get_json(SUMMARY_URL, {"event": event_id})
+
+
+def pick_box_game(event_id):
+    st.session_state["box_game"] = event_id
+
+
+def pick_from_table(table_key):
+    rows = st.session_state[table_key].selection.rows
+    ids = st.session_state.get("schedule_ids", [])
+    if rows and rows[0] < len(ids):
+        st.session_state["box_game"] = ids[rows[0]]
+
+
+def render_box_score(summary, game):
+    import pandas as pd
+
+    # Quarter-by-quarter scoring
+    comp = ((summary.get("header") or {}).get("competitions") or [{}])[0]
+    line_rows = []
+    for c in sorted(comp.get("competitors", []), key=lambda c: c.get("homeAway") != "away"):
+        quarters = [ls.get("displayValue", ls.get("value", "")) for ls in c.get("linescores", [])]
+        row = {"Team": (c.get("team") or {}).get("abbreviation", "")}
+        for i, q in enumerate(quarters, start=1):
+            row[f"Q{i}" if i <= 4 else f"OT{i - 4}" if len(quarters) > 5 else "OT"] = q
+        row["Total"] = to_number(c.get("score"))
+        row["Total"] = int(row["Total"]) if row["Total"] is not None else ""
+        line_rows.append(row)
+    if line_rows:
+        st.dataframe(line_rows, hide_index=True)
+
+    # Player stats for both teams (Cavs first)
+    blocks = sorted((summary.get("boxscore") or {}).get("players", []), key=lambda b: not is_cavs(b.get("team")))
+    for block in blocks:
+        team = block.get("team") or {}
+        for group in block.get("statistics", []):
+            columns = group.get("labels") or group.get("names") or []
+            starters, bench, dnp = [], [], []
+            for e in group.get("athletes", []):
+                name = (e.get("athlete") or {}).get("displayName", "Unknown")
+                stats = e.get("stats") or []
+                if e.get("didNotPlay") or not stats:
+                    dnp.append(f"{name} ({e.get('reason') or 'DNP'})")
+                    continue
+                row = {"Player": name}
+                row.update(dict(zip(columns, stats)))
+                (starters if e.get("starter") else bench).append(row)
+            totals = group.get("totals") or []
+            if not starters and not bench:
+                continue
+            st.markdown(f"#### {team.get('displayName', 'Team')}")
+            table = (
+                [{"Player": "— STARTERS —"}] + starters
+                + ([{"Player": "— BENCH —"}] + bench if bench else [])
+                + ([dict({"Player": "TEAM TOTALS"}, **dict(zip(columns, totals)))] if totals else [])
+            )
+            st.dataframe(pd.DataFrame(table).fillna(""), width="stretch", hide_index=True)
+            if dnp:
+                st.caption("Did not play: " + ", ".join(dnp))
+
+    # Team stat comparison
+    teams = (summary.get("boxscore") or {}).get("teams", [])
+    if len(teams) == 2:
+        teams = sorted(teams, key=lambda t: not is_cavs(t.get("team")))
+        a_stats = {s.get("name") or s.get("label"): s for s in teams[0].get("statistics", [])}
+        b_stats = {s.get("name") or s.get("label"): s for s in teams[1].get("statistics", [])}
+        compare = [
+            {
+                "Stat": s.get("label") or key,
+                teams[0].get("team", {}).get("abbreviation", "CLE"): s.get("displayValue", ""),
+                teams[1].get("team", {}).get("abbreviation", "OPP"): b_stats.get(key, {}).get("displayValue", ""),
+            }
+            for key, s in a_stats.items()
+        ]
+        if compare:
+            with st.expander("Team stats comparison"):
+                st.dataframe(compare, width="stretch", hide_index=True)
+
+    # Cavs shot chart for this game
+    game_shots = [s for s in all_shots if s["event"] == game["id"]]
+    if game_shots:
+        with st.expander("🎯 Cavs shot chart for this game"):
+            made = sum(s["made"] for s in game_shots)
+            st.plotly_chart(
+                shot_chart(game_shots, f"Cavs {matchup(game, short=True)} · {made}-{len(game_shots)} FG"),
+                width="stretch", config={"displayModeBar": False}, key=f"box_chart_{game['id']}",
+            )
+
+
 # ---------- Injuries ----------
 def parse_injuries(data, roster):
     for team_block in data.get("injuries", []):
@@ -724,10 +817,13 @@ with games_tab:
         for g in reversed(last5):
             text = result_text(g)
             icon = "🟢" if text.startswith("W") else "🔴"
-            st.markdown(f"{icon} **{text}** {matchup(g)} · {g['date'].strftime('%b %-d')}")
+            st.button(
+                f"{icon} {text} {matchup(g)} · {g['date'].strftime('%b %-d')}",
+                key=f"last5_{g['id']}", on_click=pick_box_game, args=(g["id"],), type="tertiary",
+            )
         if last5:
             wins = sum(1 for g in last5 if result_text(g).startswith("W"))
-            st.caption(f"{wins}-{len(last5) - wins} over the last {len(last5)}")
+            st.caption(f"{wins}-{len(last5) - wins} over the last {len(last5)} · click a game for its box score")
 
     st.markdown("---")
     st.markdown("### Full schedule")
@@ -738,6 +834,7 @@ with games_tab:
         rows = finished[::-1]
     else:
         rows = games
+    st.session_state["schedule_ids"] = [g["id"] for g in rows]
     st.dataframe(
         [
             {
@@ -751,7 +848,34 @@ with games_tab:
         ],
         width="stretch",
         hide_index=True,
+        key=f"schedule_table_{show}",
+        on_select=lambda: pick_from_table(f"schedule_table_{show}"),
+        selection_mode="single-row",
     )
+    st.caption("Click a row to see that game's box score")
+
+    # --- Box score ---
+    st.markdown("---")
+    game_by_id = {g["id"]: g for g in games}
+    box_id = st.session_state.get("box_game")
+    if box_id not in game_by_id:
+        box_id = live[0]["id"] if live else (finished[-1]["id"] if finished else None)
+    if box_id:
+        box_game = game_by_id[box_id]
+        st.markdown(f"### 📋 Box score: Cavs {matchup(box_game)} · {box_game['date'].strftime('%a %b %-d')}")
+        if not box_game["completed"] and box_game["state"] != "in":
+            st.info("This game hasn't been played yet. Box scores show up once it tips off.")
+        else:
+            summary = box_scores.get(box_id) if box_game["completed"] else None
+            if not summary:
+                try:
+                    summary = fetch_summary(box_id)
+                except Exception:
+                    summary = None
+            if not summary:
+                st.warning("Couldn't load this box score right now. Try Refresh.")
+            else:
+                render_box_score(summary, box_game)
 
 # ---------- Players tab ----------
 with players_tab:
