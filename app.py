@@ -524,10 +524,15 @@ PRESSER_WORDS = ["postgame", "post-game", "pregame", "pre-game", "practice", "pr
                  "shootaround", "presser", "interview", "speaks", "talks", "media day"]
 
 
+CAVS_CHANNEL_ID = "UCOdS-I1sYkKWhtTjMUWP_TA"  # official Cleveland Cavaliers YouTube channel
+
+
 @st.cache_data(ttl=24 * 60 * 60)
 def find_cavs_channel_id():
     import re
 
+    if CAVS_CHANNEL_ID:
+        return CAVS_CHANNEL_ID
     for handle in CHANNEL_HANDLES:
         try:
             page = requests.get(f"https://www.youtube.com/@{handle}", headers=HEADERS, timeout=15).text
