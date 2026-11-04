@@ -253,8 +253,8 @@ def countdown(target):
         return "Tipping off now"
     days, rem = divmod(seconds, 86400)
     hours, rem = divmod(rem, 3600)
-    minutes = rem // 60
-    return f"{days}d {hours}h {minutes}m" if days else f"{hours}h {minutes}m"
+    minutes, secs = divmod(rem, 60)
+    return f"{days}d {hours}h {minutes:02d}m {secs:02d}s" if days else f"{hours}h {minutes:02d}m {secs:02d}s"
 
 
 # ---------- Players ----------
@@ -838,6 +838,34 @@ def parse_injuries(data, roster):
             for p in roster.values() if p["injury"]]
 
 
+@st.fragment(run_every=1)
+def next_game_card(featured, is_live, cavs_logo):
+    """The next-game card re-renders itself every second so the countdown ticks live."""
+    label = "● LIVE" if is_live else ("HOME" if featured["home"] else "ROAD")
+    extra = (
+        f'<div class="countdown">{result_text(featured)} · {featured["status_text"]}</div>'
+        if is_live
+        else f'<div class="countdown">{countdown(featured["date"])}</div>'
+    )
+    opp_logo = featured["opp_logo"] or logo_url(featured["opp_abbr"])
+    st.markdown(
+        f"""<div class="game-card">
+<div class="gc-label">{label}</div>
+<div class="gc-matchup">
+<img src="{cavs_logo}"><div class="gc-vs">{"VS" if featured["home"] else "@"}</div><img src="{opp_logo}">
+<div class="gc-opp">{featured["opponent"]}</div>
+</div>
+<div class="gc-meta">
+<div><span>Date</span>{featured["date"].strftime("%a, %b %-d")}</div>
+<div><span>Tip-off</span>{featured["date"].strftime("%-I:%M %p ET")}</div>
+<div><span>TV</span>{featured["tv"]}</div>
+<div style="grid-column: span 3"><span>Arena</span>{featured["venue"]}</div>
+</div>
+{extra}
+</div>""",
+        unsafe_allow_html=True,
+    )
+
 # ---------- Load everything ----------
 try:
     schedule_data = fetch_schedule()
@@ -919,30 +947,7 @@ with games_tab:
     with left:
         section("Live now" if live else "Next game")
         if featured:
-            label = "● LIVE" if live else ("HOME" if featured["home"] else "ROAD")
-            extra = (
-                f'<div class="countdown">{result_text(featured)} · {featured["status_text"]}</div>'
-                if live
-                else f'<div class="countdown">{countdown(featured["date"])}</div>'
-            )
-            opp_logo = featured["opp_logo"] or logo_url(featured["opp_abbr"])
-            st.markdown(
-                f"""<div class="game-card">
-<div class="gc-label">{label}</div>
-<div class="gc-matchup">
-<img src="{cavs_logo}"><div class="gc-vs">{"VS" if featured["home"] else "@"}</div><img src="{opp_logo}">
-<div class="gc-opp">{featured["opponent"]}</div>
-</div>
-<div class="gc-meta">
-<div><span>Date</span>{featured["date"].strftime("%a, %b %-d")}</div>
-<div><span>Tip-off</span>{featured["date"].strftime("%-I:%M %p ET")}</div>
-<div><span>TV</span>{featured["tv"]}</div>
-<div style="grid-column: span 3"><span>Arena</span>{featured["venue"]}</div>
-</div>
-{extra}
-</div>""",
-                unsafe_allow_html=True,
-            )
+            next_game_card(featured, bool(live), cavs_logo)
         else:
             st.info("No upcoming games found. The season may be over.")
 
