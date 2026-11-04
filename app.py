@@ -557,7 +557,7 @@ def fetch_videos(channel_id):
     if key:  # Official YouTube API (most reliable)
         data = get_json(
             "https://www.googleapis.com/youtube/v3/playlistItems",
-            {"part": "snippet", "playlistId": f"UU{channel_id[2:]}", "maxResults": 25, "key": key},
+            {"part": "snippet", "playlistId": f"UU{channel_id[2:]}", "maxResults": 50, "key": key},
         )
         videos = []
         for item in data.get("items", []):
@@ -942,11 +942,21 @@ with pressers_tab:
             "[🔎 Search: Cavs postgame press conferences](https://www.youtube.com/results?search_query=cavaliers+postgame+press+conference&sp=CAI%253D)"
         )
     else:
-        only_pressers = st.toggle("Only show pressers & interviews", value=True)
-        pressers = [v for v in videos if any(w in v["title"].lower() for w in PRESSER_WORDS)]
-        shown = pressers if only_pressers and pressers else videos
-        if only_pressers and not pressers:
-            st.caption("No pressers in the channel's latest uploads, so here's everything new.")
+        view = st.radio("Show", ["Last 48 hours", "Pressers & interviews only", "All recent uploads"], horizontal=True)
+        cutoff = datetime.now(timezone.utc).timestamp() - 48 * 3600
+        if view == "Last 48 hours":
+            shown = [v for v in videos if v["when"] and v["when"].timestamp() >= cutoff]
+            if not shown:
+                st.caption("Nothing posted in the last 48 hours, so here are the latest uploads.")
+                shown = videos
+        elif view == "Pressers & interviews only":
+            shown = [v for v in videos if any(w in v["title"].lower() for w in PRESSER_WORDS)]
+            if not shown:
+                st.caption("No pressers in the latest uploads, so here's everything new.")
+                shown = videos
+        else:
+            shown = videos
+        st.caption(f"{len(shown)} video{'s' if len(shown) != 1 else ''}")
 
         featured, rest = shown[:2], shown[2:]
         cols = st.columns(2)
