@@ -3,6 +3,7 @@
 # Data comes from ESPN's public feeds.
 
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -626,7 +627,7 @@ def pick_box_game(event_id):
 
 def pick_from_table(table_key):
     rows = st.session_state[table_key].selection.rows
-    ids = st.session_state.get("schedule_ids", [])
+    ids = st.session_state.get(f"ids_{table_key}", [])
     if rows and rows[0] < len(ids):
         st.session_state["box_game"] = ids[rows[0]]
 
@@ -827,32 +828,33 @@ with games_tab:
 
     st.markdown("---")
     st.markdown("### Full schedule")
-    show = st.radio("Show", ["Upcoming", "Played", "All"], horizontal=True)
-    if show == "Upcoming":
-        rows = [g for g in games if not g["completed"]]
-    elif show == "Played":
-        rows = finished[::-1]
-    else:
-        rows = games
-    st.session_state["schedule_ids"] = [g["id"] for g in rows]
-    st.dataframe(
-        [
-            {
-                "Date": g["date"].strftime("%a %b %-d"),
-                "Time (ET)": g["date"].strftime("%-I:%M %p"),
-                "Matchup": matchup(g),
-                "Result": result_text(g) if g["completed"] or g["state"] == "in" else "",
-                "TV": g["tv"],
-            }
-            for g in rows
-        ],
-        width="stretch",
-        hide_index=True,
-        key=f"schedule_table_{show}",
-        on_select=lambda: pick_from_table(f"schedule_table_{show}"),
-        selection_mode="single-row",
-    )
-    st.caption("Click a row to see that game's box score")
+    views = {
+        "Upcoming": [g for g in games if not g["completed"]],
+        "Played": finished[::-1],
+        "All": games,
+    }
+    for sub_tab, (name, rows) in zip(st.tabs(list(views)), views.items()):
+        with sub_tab:
+            table_key = f"schedule_table_{name}"
+            st.session_state[f"ids_{table_key}"] = [g["id"] for g in rows]
+            st.dataframe(
+                [
+                    {
+                        "Date": g["date"].strftime("%a %b %-d"),
+                        "Time (ET)": g["date"].strftime("%-I:%M %p"),
+                        "Matchup": matchup(g),
+                        "Result": result_text(g) if g["completed"] or g["state"] == "in" else "",
+                        "TV": g["tv"],
+                    }
+                    for g in rows
+                ],
+                width="stretch",
+                hide_index=True,
+                key=table_key,
+                on_select=partial(pick_from_table, table_key),
+                selection_mode="single-row",
+            )
+    st.caption("Click a row in Played or All to see that game's box score")
 
     # --- Box score ---
     st.markdown("---")
